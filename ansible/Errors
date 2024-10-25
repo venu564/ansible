@@ -1,10 +1,2 @@
-Get-ItemProperty : Cannot find path 'C:\Softwares\HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\string
-MSSQLSERVER=MSSQL15.MSSQLSERVER\Setup' because it does not exist.
-At C:\Softwares\uninstall_sql_patch.ps1:18 char:27
-+ ... etupPath = (Get-ItemProperty "HKLM\SOFTWARE\Microsoft\Microsoft SQL S ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : ObjectNotFound: (C:\Softwares\HK...SQLSERVER\Setup:String) [Get-ItemProperty], ItemNotFo
-   undException
-    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetItemPropertyCommand
-
-An error occurred: Cannot bind argument to parameter 'Path' because it is null.
+TASK [Wait for WinRM to listen on port 5986] ********************************************************************************************************************************************************
+fatal: [sql1.mylab.vb.org -> localhost]: FAILED! => {"changed": false, "module_stderr": "/bin/sh: 1: powershell: not found\n", "module_stdout": "", "msg": "The module failed to execute correctly, you probably need to set the interpreter.\nSee stdout/stderr for the exact error", "rc": 127}
