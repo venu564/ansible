@@ -1,17 +1,10 @@
-Method invocation failed because [System.__ComObject] does not contain a method named 'CreateUpdater'.
-At C:\Softwares\GetVersion_Backup.ps1:20 char:11
-+           $updater = $Session.CreateUpdateSearcher().CreateUpdater()
-+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : InvalidOperation: (CreateUpdater:String) [], RuntimeException
-    + FullyQualifiedErrorId : MethodNotFound
+Get-ItemProperty : Cannot find path 'C:\Softwares\HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\string
+MSSQLSERVER=MSSQL15.MSSQLSERVER\Setup' because it does not exist.
+At C:\Softwares\uninstall_sql_patch.ps1:18 char:27
++ ... etupPath = (Get-ItemProperty "HKLM\SOFTWARE\Microsoft\Microsoft SQL S ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Softwares\HK...SQLSERVER\Setup:String) [Get-ItemProperty], ItemNotFo
+   undException
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetItemPropertyCommand
 
-Cannot convert argument "0", with value: "b9ec5083-7a1e-4eb9-800d-97f7c1eaa98e", for "QueryHistory" to type
-"System.Int32": "Cannot convert value "b9ec5083-7a1e-4eb9-800d-97f7c1eaa98e" to type "System.Int32". Error: "Input
-string was not in a correct format.""
-At C:\Softwares\GetVersion_Backup.ps1:21 char:11
-+           $UninstallationResult = $Updater.UninstallUpdates($Session. ...
-+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (:) [], MethodException
-    + FullyQualifiedErrorId : MethodArgumentConversionInvalidCastArgument
-
-Failed to uninstall update. Error Code:
+An error occurred: Cannot bind argument to parameter 'Path' because it is null.
