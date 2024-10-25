@@ -1,0 +1,13 @@
+---
+-
+  hosts: host3
+  tasks:
+    - name: Run PS command
+      ansible.windows.win_shell: powershell -Command "Get-ComputerInfo"
+      register: resul
+      args:
+        executable: cmd.exe
+    - name: Show Result
+      debug:
+        var: resul
+...

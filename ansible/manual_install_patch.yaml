@@ -1,0 +1,27 @@
+---
+-
+  hosts: sql2.mylab.vb.org
+  tasks:
+          - name: Download the update
+            ansible.windows.win_get_url:
+                    url: "https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2020/12/sqlserver2019-kb4583458-x64_f4fff8c8a897f72356466cca02513ef05e982674.exe"
+                    dest: c:\sql\KB4583458.exe
+
+
+          - name: Install the Update
+            ansible.windows.win_package:
+                    path: C:\sql\KB4583458.exe
+                    state: present
+                    arguments: /quiet /IAcceptSQLServerLicenseTerms /Action=Patch /AllInstances
+            register: install_result
+            tags:
+                    - install
+          
+          
+          - name: Display installation status
+            debug:
+                    var: install_result
+            tags:
+                    - display
+...                      
+               

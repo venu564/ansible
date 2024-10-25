@@ -1,0 +1,23 @@
+---
+-
+  hosts: sql1.mylab.vb.org
+  gather_facts: false
+  tasks:
+    - name: Create Local directory for SQL installables
+      win_file:
+        path: C:\sql
+        state: directory
+  
+    - name: Copy SQL installation file to windows servers
+      win_copy:
+        src: '\\sql2\Software\SQL2019\kb5040986.exe'
+        dest: C:\SQL\kb5040986.exe
+        remote_src: true
+      become: yes
+      become_method: runas
+      become_user: MYLAB\sqluser
+      
+
+      vars:
+              ansible_become_password: W_inter@01
+...

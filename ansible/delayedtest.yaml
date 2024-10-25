@@ -1,0 +1,196 @@
+---
+-
+  hosts: windows
+  gather_facts: false
+  strategy: free
+  vars:
+    aoag_prechecks: ""
+    aoag_postchecks: ""
+    aoag_postfailoverchecks: ""
+    aoag_secondarychecks: ""
+    max_retries: 4
+    delay_between_retries: 300
+
+
+  tasks:
+
+        - name: Initialize retry retry_counter
+          set_fact:
+            retry_counter: 0
+
+        - name: AOAG Pre-Reboot Checks
+          include_tasks: aoag_checks.yaml
+          # register: aoag_postchecks
+          tags:
+                  AOAGPreChecks
+
+        - name: Parse AOAG Pre-check
+          set_fact:
+                  aoag_prechecks: "{{ aoag_config }}"
+
+
+        - name: Display Pre Checks
+          debug:
+            var: aoag_prechecks.Role
+
+
+        - name: Check until the primary becomes secondary
+          block:
+
+            - name: Initialize retry_counter
+              set_fact:
+                retry_counter: 0
+                aoag_secondarychecks: { AlwaysOn: 0, Role: '', AGName: '', state: 0 }
+                loop_complete: false
+
+            - name: Check AG health in a loop
+              block:
+                - name: Check AG health
+                  include_tasks: aoag_checks.yaml
+                  register: aoag_config
+
+                - name: Parse AOAG Pre-check
+                  set_fact:
+                    aoag_secondarychecks: "{{ aoag_config }}"
+
+                - name: Increment retry_counter
+                  set_fact:
+                    retry_counter: "{{ retry_counter | int + 1 }}"
+
+                - name: Fail if max retries reached
+                  fail:
+                    msg: "Max Retries reached. Server is not secondary and healthy. Current Role: {{ aoag_secondarychecks.Role }}, State: {{ aoag_secondarychecks.State }}"
+                  when: retry_counter | int >= max_retries | int
+
+                - name: Assert Secondary and Healthy state
+                  assert:
+                    that: 
+                      - aoag_secondarychecks.Role == "SECONDARY"
+                      - aoag_secondarychecks.State == 1
+                    fail_msg: "Server is not secondary and healthy yet"
+                    success_msg: "Server is secondary and healthy"
+
+                - name: Exit Loop if conditions met
+                  meta: end_play
+                  when:
+                    - aoag_secondarychecks.Role == "SECONDARY"
+                    - aoag_secondarychecks.State == 1
+
+                - name: Wait for next Check
+                  wait_for:
+                    timeout: "{{ delay_between_retries }}"
+                
+              rescue:
+                - name: Log retry attempt
+                  debug:
+                    msg: "Retrying.. Current Role: {{ aoag_secondarychecks.Role }}, State: {{ aoag_secondarychecks.State }}"
+
+                - name: Continue to next iteration
+                  meta: noop
+                  when: retry_counter | int < max_retries | int
+
+            - name: Fail if loop completed without success
+              fail:
+                msg: "Failed to confirm Secondary and Helathy state within the specified time. Finale Role:   {{ aoag_secondarychecks.Role }}, state: {{ aoag_secondarychecks.State }}"
+              when:
+                - aoag_secondarychecks.Role != "SECONDARY" or aoag_secondarychecks.State == 0
+
+          when: 
+                - aoag_prechecks.AlwaysOn == 1
+                - aoag_prechecks.Role == "PRIMARY"
+                - aoag_prechecks.State == 1
+
+        - name: Reboot Secondary
+          win_reboot:
+                  reboot_timeout: 900
+          when:
+                - aoag_prechecks.Role == "SECONDARY" or aoag_secondarychecks.Role == "SECONDARY"
+                - aoag_prechecks.State == 1 or aoag_secondarychecks.State == 1
+
+
+        #- name: Pause for the services to come online
+         # pause:
+          #  minutes: 1
+
+
+        - name: Get the Service status
+          win_service:
+            name: 'ClusSvc'
+          register: service_status
+
+        - name: Display raw Info
+          debug:
+            var: service_status
+
+
+        - name: Display service state
+          debug:
+            var: service_status.state
+         
+
+        - name: Wait for the service to be running
+          win_wait_for:
+            timeout: 90
+            #path: "{{ ansible_host }}"
+          until: service_status.state == "running"
+          retries: 2
+          delay: 30
+          #when: service_status.services is defined
+
+        - name: AOAG post Reboot Checks
+          include_tasks: aoag_checks.yaml
+          # register: aoag_postchecks
+          tags:
+                  AOAGPostChecks
+
+        - name: Parse AOAG Post Checks
+          set_fact:
+                  aoag_postchecks: "{{ aoag_config }}"
+
+                 
+        - name: Display Post Checks
+          debug:
+            var: aoag_postchecks.Role
+
+        - name: Failover AG if Secondary is sync
+          win_shell: |
+                  $query4 = "ALTER AVAILABILITY GROUP [{{ aoag_postchecks.AGName }}] FAILOVER;"
+                  $failoverResult = Invoke-Sqlcmd -Query $query4
+                  #$failoverResult | ConvertTo-Json
+          register: failoverstate
+          when: 
+                - aoag_postchecks.State == 1
+                - aoag_postchecks.Role == "SECONDARY"
+
+        
+        - name: Display Raw failover checks
+          debug:
+            var: failoverstate
+
+
+        #- name: Parse Failover status
+        #  set_fact:
+        #          failover_checks: "{{ failoverstate.stdout | from_json }}"
+
+        - name: Display failover checks
+          debug:
+            var: failoverstate.changed
+
+
+        - name: AOAG post Failover Checks
+          include_tasks: aoag_checks.yaml
+          # register: aoag_postchecks
+          tags:
+                  AOAGPostChecks
+
+        - name: Parse AOAG Post Checks
+          set_fact:
+                  aoag_postfailoverchecks: "{{ aoag_config }}"
+
+                 
+        - name: Display Post Checks
+          debug:
+            var: aoag_postfailoverchecks.Role
+
+
+...

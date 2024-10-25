@@ -1,0 +1,45 @@
+---
+- name: AOAG Checks
+  win_shell: |
+          $query3 =  "DECLARE @IsAlwaysOn BIT;
+                      DECLARE @ServerRole VARCHAR(10);
+                      DECLARE @AGName VARCHAR(50);
+                      DECLARE @SyncState BIT;
+                      IF EXISTS (SELECT * FROM sys.dm_hadr_availability_replica_states)
+                      BEGIN
+                        SET @IsAlwaysOn = 1;
+                        SELECT @ServerRole = CASE WHEN ars.role_desc = 'PRIMARY' THEN 'PRIMARY'
+                        WHEN ars.role_desc = 'SECONDARY' THEN 'SECONDARY'
+                        ELSE 'UNKNOWN' END, @AGName = ag.name
+                        FROM sys.dm_hadr_availability_replica_states ars 
+                        JOIN sys.availability_replicas ar ON ars.replica_id = ar.replica_id 
+                        JOIN sys.availability_groups ag ON ar.group_id = ag.group_id
+                        WHERE ar.replica_server_name = @@SERVERNAME;
+                      END
+                      ELSE
+                      BEGIN
+                        SET @IsAlwaysOn = 0;
+                        SET @AGName = 'N/A';
+                        SET @ServerRole = 'N/A';
+                      END
+                      
+                      IF EXISTS(SELECT * FROM sys.availability_groups ag
+                                JOIN sys.availability_replicas ar ON ag.group_id = ar.group_id
+                                JOIN sys.dm_hadr_availability_replica_states ars ON ar.replica_id = ars.replica_id
+                                LEFT JOIN sys.dm_hadr_database_replica_states drs ON ars.replica_id = drs.replica_id
+                                WHERE ar.replica_server_name = @@SERVERNAME AND drs.synchronization_state_desc <> 'SYNCHRONIZED'
+                                )
+                         SET @SyncState = 0;
+                      ELSE
+                         SET @SyncState = 1;
+                         
+                      SELECT @IsAlwaysOn AS [AlwaysOn], @ServerRole AS [Role], @AGName AS [AGName], @SyncState AS [State];"
+                      $AOResult = Invoke-Sqlcmd -Query $query3
+                      $jsonResult = $AOResult | ConvertTo-Json -Compress
+                      Write-Output $jsonResult
+  register: aoag_checks_raw
+
+- name: Parse AOAG JSON
+  set_fact:
+          aoag_config: "{{ aoag_checks_raw.stdout | from_json }}"
+...

@@ -1,0 +1,25 @@
+---
+-
+  hosts: control
+  gather_facts: false
+  tasks:
+          - name: Custom Fact
+            win_shell: |
+                    $server = "SQL2"
+                    $Db = "SQLPROFILE"
+                    $query1 = "SELECT configuation,value FROM config"
+                    $result = Invoke-Sqlcmd -ServerInstance $server -Database $Db -Query $query1
+                    $result | ConvertTo-Json
+            register: config_result
+
+          - name: Parse the result
+            set_fact: 
+                      config:  "{{ config_result.stdout | from_json }}"
+
+          - name: Display parsed output
+            debug:
+                    var: list(config)
+
+
+...
+

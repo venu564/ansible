@@ -1,0 +1,69 @@
+---
+-
+  hosts: windows
+  gather_facts: false
+  vars:
+    aoag_prechecks: ""
+    aoag_postchecks: ""
+
+  tasks:
+
+        - name: AOAG Pre-Reboot Checks
+          include_tasks: aoag_checks.yaml
+          # register: aoag_postchecks
+          tags:
+                  AOAGPreChecks
+
+        - name: Parse AOAG Pre-check
+          set_fact:
+                  aoag_prechecks: "{{ aoag_config }}"
+
+
+        - name: Display Pre Checks
+          debug:
+            var: aoag_prechecks.Role
+
+
+        - name: Reboot Secondary
+          win_reboot:
+                  reboot_timeout: 900
+          when:
+                - aoag_prechecks.Role == "SECONDARY"
+                - aoag_prechecks.State == 1
+
+
+        - name: Pause for the services to come online
+          pause:
+            minutes: 10
+
+
+        - name: Get the Service status
+          win_service_info:
+            name: 'ClusSrv'
+          register: service_status
+
+
+        - name: Wait for the service to be running
+          win_wait_for:
+            timeout: 300
+            path: "{{ ansible_host }}"
+          until: service_status.status == "running"
+          retries: 10
+          delay: 30
+
+        - name: AOAG post Reboot Checks
+          include_tasks: aoag_checks.yaml
+          # register: aoag_postchecks
+          tags:
+                  AOAGPostChecks
+
+        - name: Parse AOAG Post Checks
+          set_fact:
+                  aoag_postchecks: "{{ aoag_config }}"
+
+                 
+        - name: Display Post Checks
+          debug:
+            var: aoag_postchecks.Role
+
+...

@@ -1,0 +1,67 @@
+---
+- name: Wait for server to become secondary and Healthy
+  #vars:
+    #max_retries: "{{ max_retries | default(3) }}"
+    #delay_between_retries: "{{ delay_between_retries | default(300) }}"
+    #retry_counter: "{{ retry_counter | default(0) }}"
+  block:
+    - name: Check AG health
+      include_tasks: aoag_checks.yaml
+      register: aoag_config
+
+    - name: Parse AOAG Pre-check
+      set_fact:
+          aoag_secondarychecks: "{{ aoag_config }}"
+
+    #- name: Increment Retry Counter
+     # set_fact:
+      #  retry_counter: "{{ retry_counter | int + 1 }}"
+
+    - name: Log Current status
+      debug:
+        msg: "Current Role: {{ aoag_secondarychecks.Role }}, State: {{ aoag_secondarychecks.State }}, Attempt: {{ current_attempt }}/{{ max_retries }}"
+
+    - name: Check if Secondary and Healthy
+      block:
+        - name: Asset Secondary and healthy
+          assert:
+            that:
+              - aoag_secondarychecks.Role == "SECONDARY"
+              - aoag_secondarychecks.State == 1
+            fail_msg: "Server is not Secondary and Healthy Yet"
+            success_msg: "Server is now Secondary and Healthy"
+
+        - name: Set Success flag
+          set_fact:
+            ag_check_status: true
+
+      rescue:
+        - name: Set Failure flag
+          set_fact:
+            ag_check_status: false
+
+    - name: Fail if Max retries reached
+      fail:
+        msg: "Max retries reached. Server is not secondary and Healthy. Current Role: {{ aoag_secondarychecks.Role }}, State: {{ aoag_secondarychecks.State }}"
+      when:
+        - not ag_check_status | default(false)
+        - current_attempt | int >= max_retries | int
+
+    - name: Wait before next Check
+      win_wait_for:
+        timeout: "{{ delay_between_retries }}"
+      when: not ag_check_status | default(false)
+
+    #- name: End loop if successful
+     # meta: end_play
+      #when: ag_check_status | default(false)
+    #- name: Increment attempt Counter
+     # set_fact:
+      #  ag_attempts: "{{ ag_attempts | int + 1 }}"
+        
+    #- name: Continue loop
+    #  include_tasks: wait_for_ag_secondary.yaml
+     # #vars: 
+     #   #ag_attempts: "{{ ag_attempts | int + 1 }}"
+     # when: not ag_check_status | default(false)
+...

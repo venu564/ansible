@@ -1,0 +1,12 @@
+---
+-
+  hosts: windows
+  tasks:
+    - name: Get Windows System Info
+      win_shell: Get-ComputerInfo | Select-Object WindowsProductName, OSVersion, OSArchitecture
+      register: system_info
+
+    - name: Display System Information
+      debug:
+        var: system_info.stdout_lines
+...

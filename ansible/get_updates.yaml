@@ -1,0 +1,46 @@
+---
+-
+  hosts: sql2.mylab.vb.org
+  gather_facts: no
+  tasks:
+    - name: Get the list of installed updates
+      win_shell: |
+        $Session = New-Object -ComObject "Microsoft.Update.Session"
+        $Searcher = $Session.CreateUpdateSearcher()
+        $historyCount = $Searcher.GetTotalHistoryCount()
+        $latestUpdate = $Searcher.QueryHistory(0, $historyCount) | Where-Object {$_.Title -like "*SQL*" -and $_.Operation -eq 1 } | Sort-Object -Property Date -Descending | Select-Object -First 1
+        if ($latestUpdate) {
+          @{
+            "Title" = $latestUpdate.Title
+            "Date" = $latestUpdate.Date
+            "UpdateId" = $latestUpdate.UpdateIdentity.UpdateID
+            } | ConvertTo-Json
+        }
+        else {
+        "No SQL Server updates found"
+        }
+      register: latest_sql_update
+
+    - name: Display latest SQL Server update
+      debug:
+        var: latest_sql_update.stdout_lines
+
+    - name: Uninstall the update in AOAG Secondary
+      win_shell: |
+        $update = ConvertFrom-Json '{{ latest_sql_update.stdout }}'
+        if($update.UpdateId) {
+          $Session = New-Object -ComObject "Microsoft.Update.Session"
+          $updater = $Session.CreateUpdateSearcher().CreateUpdater()
+          $UninstallationResult = $Updater.UninstallUpdates($Session.CreateUpdateSearcher().QueryHistory($update.UpdateID))
+          if ($UninstallationResult.HResult -eq 0) {
+            "Update uninstallation initiated successfully"
+          } else {
+            "Failed to uninstall update. Error Code: $($UninstallationResult.HResult)"
+          }
+        } else {
+          "No update to uninstall"
+        }
+      register: aoag_uninstall_result
+      when: latest_sql_update.stdout != "No SQL Server updates found"
+      tags:
+              - AOAGUninstall

@@ -1,0 +1,13 @@
+---
+-
+  hosts: windows
+  
+  gather_facts: False
+  
+  tasks:
+    ansible.windows.win_shell: whoami
+    register: result
+     
+    debug:
+      var: result
+...

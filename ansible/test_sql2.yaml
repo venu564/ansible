@@ -1,0 +1,31 @@
+---
+-
+  hosts: sql2.mylab.vb.org
+  gather_facts: false
+  tasks:
+          - name: Get config
+            win_shell: | 
+                    $servername = "SQL2"
+                    $database = "SQLPROFILE"
+                    $query = "SELECT (SELECT Value FROM config WHERE Configuation = 'Path') AS SQL2019Path, (SELECT Value FROM config WHERE Configuation = 'FileName') AS FileName, (SELECT Value FROM config WHERE Configuation = 'Destination') AS Destination"
+                    $result = Invoke-SQLcmd -ServerInstance $servername -Database $database -Query $query
+                    $result | ConvertTo-Json
+            register: result_output
+
+
+          - name: Parse Json Format
+            set_fact:
+                    config: "{{ result_output.stdout | from_json }}"
+
+
+          - name: Display the json output
+            debug:
+                    var: config
+
+          - name: Display filename
+            debug:
+                    msg: "Config is dict {{ config.SQL2019Path }}"
+
+
+
+                    

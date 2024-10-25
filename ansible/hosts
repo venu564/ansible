@@ -1,0 +1,24 @@
+[windows]
+sql1.mylab.vb.org ansible_user=Administrator@mylab.vb.org
+sql2.mylab.vb.org ansible_user=Administrator@mylab.vb.org
+sql3.mylab.vb.org ansible_user=Administrator@mylab.vb.org
+
+[windows:vars]
+ansible_password=W_inter@01
+ansible_winrm_transport=ntlm
+#ansible_winrm_transport=kerberos
+#ansible_winrm_kerberos_delegation=true
+ansible_port=5986
+#ansible_connection=ssh
+ansible_connection=winrm
+#ansible_shell_type=cmd
+#ansible_shell_type=powershell
+#ansible_ssh_shell_type=powershell
+#ansible_shell_executable=C:\Windows\System32\WindowsPowerShell\V1.0\powershell.exe
+#ansible_become_user=Administrator
+#ansible_become_method=runas
+#ansible_shell_executable=powershell.exe
+ansible_winrm_server_cert_validation=ignore
+#ansible_python_interpreter=none
+ansible_winrm_read_timeout_sec=90
+ansible_winrm_operation_timeout_sec=60

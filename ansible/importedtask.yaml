@@ -1,0 +1,13 @@
+---
+- name: Testing task
+  win_shell: |
+          $query3 = "SELECT name AS [DBName], log_reuse_wait_desc AS [LogWait] FROM sys.databases WHERE name = 'SQLPROFILE';"
+          $AOResult = Invoke-Sqlcmd -Query $query3
+          $jsonResult = $AOResult | ConvertTo-Json -Compress
+          Write-Output $jsonResult
+  register: aoag_checks_raw
+
+- name: Parse AOAG JSON
+  set_fact:
+          aoag_config: "{{ aoag_checks_raw.stdout | from_json }}"
+...

@@ -1,0 +1,63 @@
+---
+-
+  hosts: sql2.mylab.vb.org
+  gather_facts: false
+  tasks:
+          - name: Fetch Patch Details from DSR Configuration
+            win_shell: |
+                    $server = "SQL2"
+                    $database = "SQLPROFILE"
+                    $query = "SELECT (SELECT Value FROM Config WHERE Configuation = 'SQL2019Path') AS SQL2019Path, (SELECT Value FROM Config WHERE Configuation = 'SQL2019FileName') AS FileName, (SELECT Value FROM Config WHERE Configuation = 'Destination') AS destination"
+                    $result = Invoke-Sqlcmd -ServerInstance $server -Database $database -Query $query
+                    $result | ConvertTo-Json
+            register: config_result
+            tags:
+                    - FetchConfigs
+
+
+          - name: Parse JSON result
+            set_fact:
+                    config: "{{ config_result.stdout | from_json }}"
+
+         
+
+          - name: Display the configs
+            debug:
+                    var: config
+
+
+          - name: Copy patch file
+            win_copy:
+                    src: "{{ config.SQL2019Path }}\\{{ config.FileName }}.exe"
+                    dest: "{{ config.destination }}\\{{ config.FileName }}.exe"
+                    remote_src: yes
+            become: yes
+            become_method: runas
+            vars:
+                    ansible_become_user: MYLAB\sqluser
+                    ansile_become_password: W_inter@01
+            register: copy_result
+            tags:
+                    - copy
+
+
+          - name: Display copy result
+            debug:
+                    var: copy_result
+
+          - name: Install the Update
+            ansible.windows.win_package:
+                    path: "{{ config.destination }}\\{{ config.FileName }}.exe"
+                    state: present
+                    arguments: /quiet /IAcceptSQLServerLicenseTerms /Action=Patch /AllInstances
+            register: install_result
+            tags:
+                    - install
+                    
+          - name: Display installation status
+            debug:
+                    var: install_result
+            tags:
+                    - display            
+...
+

@@ -1,0 +1,20 @@
+---
+-
+  hosts: sql2.mylab.vb.org
+  gather_facts: false
+  tasks:
+          - name: SQL Connection test
+            win_shell: |
+                    $server = "SQL2"
+                    $database = "SQLPROFILE"
+                    $query = "SELECT * FROM Config"
+                    $result = Invoke-Sqlcmd -ServerInstance $server -Database $database -Query $query
+                    Write-Output "Result: $($result[0].Value)"
+            register: sql_result
+
+          - name: Display SQL result
+            debug:
+                    var: sql_result
+
+...
+

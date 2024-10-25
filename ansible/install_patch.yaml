@@ -1,0 +1,50 @@
+---
+-
+  hosts: sql2.mylab.vb.org
+  gather_facts: false
+  tasks:
+    - name: Enable Windows Update Service
+      win_service:
+              name: wuauserv
+              start_mode: auto
+              state: started
+
+    - name: Configure Windows Update
+      win_regedit:
+              path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU
+              name: AUOptions
+              data: 4
+              type: dword
+
+
+
+    - name: Force Windows Update Check
+      ansible.windows.win_shell: (New-Object -ComObject Microsoft.Update.AutoUpdate).DetectNow()
+
+    - name: Wait for Windows Update check to complete
+      ansible.windows.win_shell: Start-Sleep -Seconds 30
+
+    - name: Install SQL Server Patch
+      win_updates:
+        category_names:
+          - SecurityUpdates
+        whitelist:
+          -KB5042749
+        state: installed 
+      log_path: C:\Windows\Temp\win_updates.log
+      register: update_result
+
+
+    - name: Display Update Log
+      ansible.windows.win_shell: Get-Content -Path "C:\Windows\Temp\win_updates.log"
+      register: update_log
+
+    - name: Show Update log
+      debug:
+              var: update_log.stdout_lines
+
+    - name: Reboot if required
+      win_reboot:
+      when: update_result.reboot_required
+
+...

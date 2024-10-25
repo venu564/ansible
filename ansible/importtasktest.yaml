@@ -1,0 +1,20 @@
+---
+- 
+  hosts: sql2.mylab.vb.org
+  gather_facts: false
+  vars:
+    main_db_name: ""
+  tasks:
+          - name: Testing Import Task
+            include_tasks: importedtask.yaml
+            
+          - name: Assign result
+            set_fact:
+              main_db_name: "{{ aoag_config }}"
+
+          
+          - name: Display Result
+            debug:
+                  var: main_db_name.LogWait, main_db_name.DBName
+
+...

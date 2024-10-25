@@ -1,0 +1,333 @@
+---
+-
+  hosts: windows
+  strategy: free
+  gather_facts: false
+  vars:
+        aoag_prechecks: ""
+        aoag_postchecks: ""
+        aoag_postfailoverchecks: ""
+  tasks:
+
+
+          - name: Fetch current SQL Version details
+            win_shell: |
+                    $query1 = "SELECT CAST(SERVERPROPERTY('productversion') AS varchar(20)) AS ProductVersion, 'SQL' + 
+                        CASE CAST(SERVERPROPERTY('productversion') AS CHAR(2))
+                                  WHEN '8.' THEN '2000'
+                                  WHEN '9.' THEN '2005'
+                                  WHEN '10' THEN '2008/2008R2'
+                                  WHEN '11' THEN '2012'
+                                  WHEN '12' THEN '2014'
+                                  WHEN '13' THEN '2016'
+                                  WHEN '15' THEN '2019'
+                                  WHEN '16' THEN '2022'
+                                  END AS SQLVersion,
+                         CAST((SUBSTRING(CAST(SERVERPROPERTY('productversion') AS varchar(20)), 1, 2)) AS int) AS MajorVersion,
+                         CAST((SUBSTRING(CAST(SERVERPROPERTY('productversion') AS varchar(20)), 6, 4)) AS int) AS MinorVersion"
+                     $result1 = Invoke-Sqlcmd -Query $query1
+                     $result1 | ConvertTo-Json
+            register: version_result
+            tags:
+                    - FetchVersion
+
+
+          #- name: Debug Version Result
+           # debug:
+            #       var: version_result
+            #tags:
+             #      - DisplayVersionResult
+
+
+
+          - name: Parse JSON Version results
+            set_fact:
+                    version: "{{ version_result.stdout | from_json }}"
+            tags:
+                    - ParseVersion
+
+
+
+          - name: Display Version
+            debug:
+                    var: version.MinorVersion
+            tags:
+                    - DisplayVersion
+
+
+          - name: Fetch DSR Config
+            win_shell: |
+                    $server = "SQL2"
+                    $database = "SQLPROFILE"
+                    $query3 = "SELECT (SELECT value FROM [SQL2].[SQLPROFILE].[dbo].config WHERE Configuation = '{{ version.SQLVersion }}Path') AS SQLPath, (SELECT value FROM [SQL2].[SQLPROFILE].[dbo].config WHERE Configuation = '{{ version.SQLVersion }}FileName') AS SQLFileName, (SELECT value FROM [SQL2].[SQLPROFILE].[dbo].config WHERE Configuation = 'destination') AS destination, (SELECT SUBSTRING(value,6,4) FROM [SQL2].[SQLPROFILE].[dbo].config WHERE Configuation = '{{ version.SQLVersion }}Version') AS MinorVersion"
+                    $query_result3 = Invoke-Sqlcmd -Query $query3
+                    $query_result3 | ConvertTo-Json
+            register: dsrconfigresult
+            tags:
+                    - FetchDSRConfig
+
+
+          - name: Parse DSR Config
+            set_fact:
+                    config: "{{ dsrconfigresult.stdout | from_json }}"
+            tags:
+                    - ParseDSRConfig
+
+
+
+          - name: Display the DSR configs
+            debug:
+                    var: config.MinorVersion
+            tags:
+                    - DisplayConfig
+
+
+
+          - name: Copy patch file
+            win_copy:
+                    src: "{{ config.SQLPath }}\\{{ config.SQLFileName }}.exe"
+                    dest: "{{ config.destination }}\\{{ config.SQLFileName }}.exe"
+                    remote_src: yes
+            become: yes
+            become_method: runas
+            become_user: MYLAB\sqluser
+            vars:
+                    ansible_become_password: W_inter@01
+
+            when: version.MinorVersion | int < config.MinorVersion | int
+            register: copy_result
+            tags:
+                    - copy
+
+
+
+          #- name: Display copy result
+          #  debug:
+          #          var: copy_result
+          #  tags:
+          #           - DisplayCopyResult
+
+
+
+          - name: AOAG PreChecks
+            include_tasks: aoag_checks.yaml
+            #            register: aoag_prechecks
+            tags:
+                    - FetchAOAGConfig
+
+                      #  - name: Parse the AOAG Pre Config Result
+                      #           set_fact:
+                      #aoag_config: "{{ aoag_prechecks.stdout | from_json }}"
+                      #tags:
+                      #- ParseAOAGConfig
+                      #
+                      #
+          - name: Store Pre-check Results
+            set_fact:
+                    aoag_prechecks: "{{ aoag_config }}"
+
+
+
+          - name: Display AOAG Config Result
+            debug:
+                    var: aoag_prechecks.Role
+            tags:
+                    - DisplayAOAGConfig
+
+          - name: Initialize the Counter
+            set_fact:
+              ag_attempts: 1
+
+          - name: Check until the primary becomes secondary
+            include_tasks: wait_for_ag_secondary.yaml
+            vars:
+                max_retries: 10
+                delay_between_retries: 300
+                #ag_attempts: 1
+            loop: "{{ range(1, max_retries + 1) | list }}"
+            loop_control:
+              loop_var: current_attempt
+            when: 
+                - (version.MinorVersion | int) < (config.MinorVersion | int)
+                - aoag_prechecks.AlwaysOn == 1
+                - aoag_prechecks.Role == "PRIMARY"
+                - aoag_prechecks.State == 1
+
+          - name: Reset ag_attempts 
+            set_fact:
+              ag_attempts: 1
+
+          - name: AOAG Post Secondary Transition Checks
+            include_tasks: aoag_checks.yaml
+                # register: aoag_postchecks
+            tags:
+                  AOAGPreChecks
+
+          - name: Parse AOAG Post secondary Transition Checks
+            set_fact:
+                  aoag_prechecks: "{{ aoag_config }}"
+
+
+          - name: Display Post Secondary  Checks
+            debug:
+              var: aoag_prechecks.Role
+          
+          - name: AOAG Patching on Secondary
+            block:
+                     - name: Install the update in AOAG Secondary
+                       win_package:
+                              path: "{{ config.destination }}\\{{ config.SQLFileName }}.exe"
+                              state: present
+                              arguments: /quiet /IAcceptSQLServerLicenseTerms /Action=Patch /AllInstances
+                     
+                       register: aoag_install_result
+                       
+
+                       tags:
+                               - AOAGInstall
+
+         #           - name: Display AOAG Installation status
+         #             debug:
+         #                      var: aoag_install_result
+         #             tags:
+         #                      - DisplayAOAGInstallStatus
+
+
+                     - name: Reboot Secondary
+                       win_reboot:
+                                reboot_timeout: 900
+                       when:
+                                - aoag_prechecks.Role == "SECONDARY"
+                                #- aoag_prechecks.State == 1
+                                #- aoag_install_result.changed == "true"
+                                
+
+                     - name: Wait for WinRM to listen on port 5986
+                       win_wait_for:
+                        port: 5986
+                        state: started
+                        timeout: 600
+                        sleep: 5
+                        host: "{{ inventory_hostname }}"
+                       delegate_to: localhost
+
+                     - name: Wait for SQL Services to listen on port 1433
+                       win_wait_for:
+                        port: 1433
+                        state: started
+                        timeout: 600
+                        sleep: 5
+                        host: "{{ inventory_hostname }}"
+                       delegate_to: localhost
+
+
+                     - name: Get the Service status
+                       win_service:
+                        name: 'ClusSvc'
+                       register: service_status
+
+                     - name: Display raw Info
+                       debug:
+                          var: service_status
+
+
+                     - name: Display service state
+                       debug:
+                          var: service_status.state
+                        
+
+                     - name: Wait for the service to be running
+                       win_wait_for:
+                       timeout: 150
+                        #path: "{{ ansible_host }}"
+                       until: service_status.state == "running"
+                       retries: 5
+                       delay: 30
+                       when: service_status.state != "running"
+
+                     - name: AOAG post Reboot Checks
+                       include_tasks: aoag_checks.yaml
+                        # register: aoag_postchecks
+                       tags:
+                                - AOAGPostChecks
+
+                     - name: Parse AOAG Post Checks
+                       set_fact:
+                              aoag_postchecks: "{{ aoag_config }}"
+
+
+                                
+                     - name: Display Post Checks
+                       debug:
+                          var: aoag_postchecks.Role
+
+                     - name: Failover AG if Secondary is sync
+                       win_shell: |
+                                $query4 = "ALTER AVAILABILITY GROUP [{{ aoag_postchecks.AGName }}] FAILOVER;"
+                                $failoverResult = Invoke-Sqlcmd -Query $query4
+                                #$failoverResult | ConvertTo-Json
+                       register: failoverstate
+                       when: 
+                                - aoag_postchecks.State == 1
+                                - aoag_postchecks.Role == "SECONDARY"
+
+                        
+                     - name: Display Raw failover checks
+                       debug:
+                          var: failoverstate
+
+
+                        #- name: Parse Failover status
+                        #  set_fact:
+                        #          failover_checks: "{{ failoverstate.stdout | from_json }}"
+
+                     - name: Display failover checks
+                       debug:
+                         var: failoverstate.changed
+
+
+                     - name: AOAG post Failover Checks
+                       include_tasks: aoag_checks.yaml
+                        # register: aoag_postchecks
+                       tags:
+                              - AOAGPostChecks
+
+                     - name: Parse AOAG Post Checks
+                       set_fact:
+                              aoag_postfailoverchecks: "{{ aoag_config }}"
+
+                                
+                     - name: Display Post Checks
+                       debug:
+                          var: aoag_postfailoverchecks.Role
+            when:
+                     - (version.MinorVersion | int) < (config.MinorVersion | int)
+                     - aoag_prechecks.AlwaysOn == 1
+                     - aoag_prechecks.Role == "SECONDARY"
+                     - aoag_prechecks.State == 1
+           
+
+
+          - name: Install the Update in Standalone Server
+            ansible.windows.win_package:
+                    path: "{{ config.destination }}\\{{ config.SQLFileName }}.exe"
+                    state: present
+                    arguments: /quiet /IAcceptSQLServerLicenseTerms /Action=Patch /AllInstances
+            when:
+                    - version.MinorVersion | int < config.MinorVersion | int
+                    - aoag_prechecks.AlwaysOn == 0
+            register: install_result
+            tags:
+                    - install
+          
+
+
+          - name: Display installation status
+            debug:
+                    var: install_result
+            tags:
+                    - displayinstallstatus  
+
+                      
+                      
+...

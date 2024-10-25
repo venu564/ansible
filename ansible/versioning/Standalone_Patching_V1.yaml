@@ -1,0 +1,128 @@
+---
+-
+  hosts: sql2.mylab.vb.org
+  gather_facts: false
+  tasks:
+
+
+          - name: Fetch current SQL Version details
+            win_shell: |
+                    $query1 = "SELECT CAST(SERVERPROPERTY('productversion') AS varchar(20)) AS ProductVersion, 'SQL' + 
+                        CASE CAST(SERVERPROPERTY('productversion') AS CHAR(2))
+                                  WHEN '8.' THEN '2000'
+                                  WHEN '9.' THEN '2005'
+                                  WHEN '10' THEN '2008/2008R2'
+                                  WHEN '11' THEN '2012'
+                                  WHEN '12' THEN '2014'
+                                  WHEN '13' THEN '2016'
+                                  WHEN '15' THEN '2019'
+                                  WHEN '16' THEN '2022'
+                                  END AS SQLVersion,
+                         CAST((SUBSTRING(CAST(SERVERPROPERTY('productversion') AS varchar(20)), 1, 2)) AS int) AS MajorVersion,
+                         CAST((SUBSTRING(CAST(SERVERPROPERTY('productversion') AS varchar(20)), 6, 4)) AS int) AS MinorVersion"
+                     $result1 = Invoke-Sqlcmd -Query $query1
+                     $result1 | ConvertTo-Json
+            register: version_result
+            tags:
+                    - FetchVersion
+
+
+          - name: Debug Version Result
+            debug:
+                    var: version_result
+            tags:
+                    - DisplayVersionResult
+
+
+
+          - name: Parse JSON Version results
+            set_fact:
+                    version: "{{ version_result.stdout | from_json }}"
+            tags:
+                    - ParseVersion
+
+
+
+          - name: Display Version
+            debug:
+                    var: version.MinorVersion
+            tags:
+                    - DisplayVersion
+
+
+
+          - name: Fetch Patch Details from DSR Configuration
+            win_shell: |
+                    $server = "SQL2"
+                    $database = "SQLPROFILE"
+                    $query2 = "SELECT (SELECT Value FROM Config WHERE Configuation = '{{ version.SQLVersion }}Path') AS SQLPath, (SELECT Value FROM Config WHERE Configuation = '{{ version.SQLVersion }}FileName') AS SQLFileName, (SELECT Value FROM Config WHERE Configuation = 'Destination') AS destination, (SELECT SUBSTRING(Value, 6, 4) FROM Config WHERE Configuation = '{{ version.SQLVersion }}Version') AS MinorVersion"
+                    $result = Invoke-Sqlcmd -ServerInstance $server -Database $database -Query $query2
+                    $result | ConvertTo-Json
+            register: config_result
+            tags:
+                    - FetchConfig
+
+
+
+          - name: Parse config JSON results
+            set_fact:
+                    config: "{{ config_result.stdout | from_json }}"
+            tags:
+                    - ParseConfig
+
+         
+
+          - name: Display the configs
+            debug:
+                    var: config.MinorVersion
+            tags:
+                    - DisplayConfig
+
+
+
+          - name: Copy patch file
+            win_copy:
+                    src: "{{ config.SQLPath }}\\{{ config.SQLFileName }}.exe"
+                    dest: "{{ config.destination }}\\{{ config.SQLFileName }}.exe"
+                    remote_src: yes
+            become: yes
+            become_method: runas
+            vars:
+                    ansible_become_user: MYLAB\sqluser
+                    ansile_become_password: W_inter@01
+            when: version.MinorVersion | int < config.MinorVersion | int
+            register: copy_result
+            tags:
+                    - copy
+
+
+
+          - name: Display copy result
+            debug:
+                    var: copy_result
+            tags:
+                    - DisplayCopyResult
+
+        
+
+          - name: Install the Update
+            ansible.windows.win_package:
+                    path: "{{ config.destination }}\\{{ config.SQLFileName }}.exe"
+                    state: present
+                    arguments: /quiet /IAcceptSQLServerLicenseTerms /Action=Patch /AllInstances
+            when: version.MinorVersion | int < config.MinorVersion | int
+            register: install_result
+            tags:
+                    - install
+          
+
+
+          - name: Display installation status
+            debug:
+                    var: install_result
+            tags:
+                    - displayinstallstatus  
+
+                      
+                      
+...

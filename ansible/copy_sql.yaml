@@ -1,0 +1,16 @@
+---
+-
+  hosts: windows
+  gather_facts: false
+
+  tasks:
+    - name: Create Patch folder
+      win_file:
+        path: C:\sql
+        state: directory
+    
+    - name: Copy the SQL installable
+      win_copy:
+        src: SQL2019-SSEI-Dev.exe
+        dest: C:\sql\SQL2019=SSEI=Dev.exe
+...

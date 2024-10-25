@@ -1,0 +1,16 @@
+---
+-
+  hosts: windows
+
+  tasks:
+    - name: Create Local directory for SQL installables
+      win_file:
+        path: C:\sql
+        state: directory
+  
+    - name: Copy SQL installation file to windows servers
+      win_copy:
+        src: '\\sql2\Software\SQL2019-SSEI-Dev.exe'
+        dest: C:\SQL\SQL2019-SSEI-Dev.exe
+        remote_src: true
+...
