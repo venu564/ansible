@@ -1,0 +1,17 @@
+Method invocation failed because [System.__ComObject] does not contain a method named 'CreateUpdater'.
+At C:\Softwares\GetVersion_Backup.ps1:20 char:11
++           $updater = $Session.CreateUpdateSearcher().CreateUpdater()
++           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (CreateUpdater:String) [], RuntimeException
+    + FullyQualifiedErrorId : MethodNotFound
+
+Cannot convert argument "0", with value: "b9ec5083-7a1e-4eb9-800d-97f7c1eaa98e", for "QueryHistory" to type
+"System.Int32": "Cannot convert value "b9ec5083-7a1e-4eb9-800d-97f7c1eaa98e" to type "System.Int32". Error: "Input
+string was not in a correct format.""
+At C:\Softwares\GetVersion_Backup.ps1:21 char:11
++           $UninstallationResult = $Updater.UninstallUpdates($Session. ...
++           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], MethodException
+    + FullyQualifiedErrorId : MethodArgumentConversionInvalidCastArgument
+
+Failed to uninstall update. Error Code:
