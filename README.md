@@ -4,3 +4,5 @@ For this I have configured my Lab using Oracle VM Virtualbox Manager, using whic
 SQL1 and SQL3 are configured with Windows cluster and enabled with Always on SQL Servers without listener. 
 SQL2 is Domain controller along with Ansible control node which is installed in WSL Ubuntu. Created forest domain named mylab.vb.org and added all these servers to it. 
 Initial practice is with SQL Standalone and Always on(2 replicas) patching automation.
+
+1 3 1 -- Normal simple with all chars
