@@ -5,4 +5,7 @@ SQL1 and SQL3 are configured with Windows cluster and enabled with Always on SQL
 SQL2 is Domain controller along with Ansible control node which is installed in WSL Ubuntu. Created forest domain named mylab.vb.org and added all these servers to it. 
 Initial practice is with SQL Standalone and Always on(2 replicas) patching automation.
 
+Instructions:
 1 3 1 -- Normal simple with all chars
+
+unlock oracle vms -- left alt+right ctrl+del -- cancel the host task manager and you will see the prompt in the vm.. do twice or thrice if not working in first attempt
